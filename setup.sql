@@ -7,7 +7,7 @@ on conflict do nothing;
 create table if not exists public.places (
  id text primary key, name text not null, city text not null, category text not null,
  lat double precision, lng double precision, image text not null default '',
- fallback text not null default '', status text not null default 'want',
+ fallback text not null default '', status text not null default 'want', favorite boolean not null default false,
  day text not null default '', notes text not null default '',
  added_by text not null default '', updated_by text not null default '',
  sort integer not null default 0, updated_at timestamptz not null default now()
@@ -33,3 +33,6 @@ do $$ begin
  alter publication supabase_realtime add table public.places;
  exception when duplicate_object then null;
 end $$;
+
+-- Safe for existing databases too
+alter table public.places add column if not exists favorite boolean not null default false;
