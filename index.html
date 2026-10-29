@@ -124,15 +124,24 @@ async function readSheet(){
 }
 async function writeSheet(action,payload){
  const cfg=config();
- // Script web apps do not provide CORS headers. A text/plain no-cors POST
- // sends the write; an independent JSONP read verifies persistence.
+ if(!cfg.url||!cfg.code)throw Error('Google Sheet is not configured');
+ // POST cross-origin with a simple request and verify by a separate JSONP read.
  await fetch(cfg.url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action,code:cfg.code,...payload})});
- let last=null;for(let attempt=0;attempt<3;attempt++){
-  if(attempt)await new Promise(r=>setTimeout(r,1000));
-  try{last=await readSheet();if(action==='import'||last.items.some(x=>x.id===payload.item.id&&x.updated_by===payload.item.updated_by))break}catch(e){if(attempt===2)throw e}
+ const same=(a,b)=>String(a??'')===String(b??'');
+ const confirmed=(rows)=>{
+  if(action==='import')return payload.items.every(p=>rows.some(x=>x.id===p.id));
+  const x=rows.find(p=>p.id===payload.item.id),p=payload.item;
+  return !!x&&same(x.name,p.name)&&same(x.city,p.city)&&same(x.day,p.day)
+      &&same(x.status,p.status)&&Boolean(x.favorite)===Boolean(p.favorite)
+      &&same(x.notes,p.notes)&&same(x.image,p.image)&&same(x.cuisine,p.cuisine);
+ };
+ let last=null;
+ for(let attempt=0;attempt<4;attempt++){
+  if(attempt)await new Promise(r=>setTimeout(r,1200));
+  try{last=await readSheet();if(confirmed(last.items||[]))break}
+  catch(e){if(attempt===3)throw e}
  }
- if(!last?.ok)throw Error('Could not verify the save.');
- if(action==='upsert'&&!last.items.some(x=>x.id===payload.item.id&&x.updated_by===payload.item.updated_by))throw Error('Write not confirmed in Google Sheet.');
+ if(!last?.ok||!confirmed(last.items||[]))throw Error('Write could not be confirmed. Check the Sheet and deployment.');
  items=last.items||[];sheetActive=true;sheetLink=last.url||'';saveLocal();
 }
 function preserveLocalBeforeSheets(){if(localStorage.getItem('cali-todo-before-sheets'))return;const raw=localStorage.getItem('cali-todo-local');if(raw&&JSON.parse(raw).length)localStorage.setItem('cali-todo-before-sheets',raw);}
