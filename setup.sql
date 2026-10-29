@@ -36,3 +36,6 @@ end $$;
 
 -- Safe for existing databases too
 alter table public.places add column if not exists favorite boolean not null default false;
+
+-- Pinterest category filters
+alter table public.places add column if not exists "group" text not null default 'Walking';
