@@ -4,7 +4,7 @@
 // 3) Run setupCaliforniaTodo() once, authorize, then deploy as Web app:
 //    Execute as Me; Who has access: Anyone.
 // Never commit your real FAMILY_CODE to public GitHub.
-const FAMILY_CODE='popolatte';
+const FAMILY_CODE='REPLACE_WITH_YOUR_PRIVATE_CODE_12_CHARS_OR_MORE';
 const KEYS=['id','name','city','category','group','cuisine','lat','lng','image','fallback','status','favorite','day','notes','added_by','updated_by','sort','updated_at'];
 const COLORS={dark:'#17303A',teal:'#267265',pale:'#E9F2EE'};
 function assertCode_(code){if(FAMILY_CODE.startsWith('REPLACE_')||FAMILY_CODE.length<12)throw Error('Change FAMILY_CODE first');if(String(code)!==FAMILY_CODE)throw Error('Incorrect family code')}
