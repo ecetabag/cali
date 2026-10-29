@@ -128,18 +128,19 @@ async function writeSheet(action,payload){
  // sends the write; an independent JSONP read verifies persistence.
  await fetch(cfg.url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action,code:cfg.code,...payload})});
  let last=null;for(let attempt=0;attempt<3;attempt++){
-  if(attempt)await new Promise(r=>setTimeout(r,750));
+  if(attempt)await new Promise(r=>setTimeout(r,1000));
   try{last=await readSheet();if(action==='import'||last.items.some(x=>x.id===payload.item.id&&x.updated_by===payload.item.updated_by))break}catch(e){if(attempt===2)throw e}
  }
  if(!last?.ok)throw Error('Could not verify the save.');
  if(action==='upsert'&&!last.items.some(x=>x.id===payload.item.id&&x.updated_by===payload.item.updated_by))throw Error('Write not confirmed in Google Sheet.');
  items=last.items||[];sheetActive=true;sheetLink=last.url||'';saveLocal();
 }
+function preserveLocalBeforeSheets(){if(localStorage.getItem('cali-todo-before-sheets'))return;const raw=localStorage.getItem('cali-todo-local');if(raw&&JSON.parse(raw).length)localStorage.setItem('cali-todo-before-sheets',raw);}
 async function connectSheet(){
  if(!config().url)return;
  try{
   const data=await readSheet();
-  sheetActive=true;sheetLink=data.url||'';items=data.items||[];
+  preserveLocalBeforeSheets();sheetActive=true;sheetLink=data.url||'';items=data.items||[];
   render();saveLocal();
  }catch(e){sheetActive=false;console.warn('Sheet connection:',e);setModePill();}
 }
@@ -149,7 +150,7 @@ async function refreshSheet(){
 }
 async function importCurrentBoard(){
  if(!sheetActive)return alert('Connect the sheet first.');
- const raw=localStorage.getItem('cali-todo-local');
+ const raw=localStorage.getItem('cali-todo-before-sheets')||localStorage.getItem('cali-todo-local');
  const local=raw?JSON.parse(raw):starterData();
  if(!local.length)return alert('Nothing to import.');
  if(!confirm('Import '+local.length+' items into Google Sheets? Existing rows with matching IDs will stay unchanged.'))return;
@@ -166,7 +167,7 @@ function showSheetSettings(){
   if(!code)return alert('Enter the private family code you set in Code.gs.');
   localStorage.setItem(configKey,JSON.stringify({url,code}));
   localStorage.setItem('cali-person-name',document.getElementById('sheetName').value.trim()||'Family');
-  try{const data=await readSheet();sheetActive=true;sheetLink=data.url||'';items=data.items||[];saveLocal();render();showSheetSettings();}
+  try{const data=await readSheet();preserveLocalBeforeSheets();sheetActive=true;sheetLink=data.url||'';items=data.items||[];saveLocal();render();showSheetSettings();}
   catch(e){sheetActive=false;alert('Connection failed: '+e.message)}
  };
  document.getElementById('importSheet')?.addEventListener('click',importCurrentBoard);
