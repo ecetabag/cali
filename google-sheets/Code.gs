@@ -19,7 +19,30 @@ function all_(){const p=tab_('Places');const last=p.getLastRow();return last<2?[
 function doGet(e){const cb=String(e.parameter.callback||'');const safe=/^__caliSheetCb\.cb\d+$/.test(cb)?cb:'__caliSheetCb.cb0';try{if(safe!==cb)throw Error('Bad callback');assertCode_(e.parameter.code);return ContentService.createTextOutput(cb+'('+JSON.stringify({ok:true,items:all_(),url:ss_().getUrl()})+');').setMimeType(ContentService.MimeType.JAVASCRIPT)}catch(ex){return ContentService.createTextOutput(safe+'('+JSON.stringify({ok:false,error:String(ex.message||ex)})+');').setMimeType(ContentService.MimeType.JAVASCRIPT)}}
 function doPost(e){try{const p=JSON.parse(e.postData.contents);assertCode_(p.code);const lock=LockService.getScriptLock();lock.waitLock(20000);try{if(p.action==='upsert'){upsert_(p.item)}else if(p.action==='import'){import_(p.items)}else throw Error('Invalid action');SpreadsheetApp.flush();rebuild_()}finally{lock.releaseLock()}return ContentService.createTextOutput(JSON.stringify({ok:true}))}catch(ex){return ContentService.createTextOutput('error: '+String(ex.message||ex))}}
 function upsert_(p){if(!p?.id||!p?.name)throw Error('Missing place id/name');const sh=tab_('Places'),n=sh.getLastRow();const ids=n>1?sh.getRange(2,1,n-1,1).getValues().flat():[];const pos=ids.indexOf(p.id);if(pos>=0&&p.updated_at){const current=sh.getRange(pos+2,18).getDisplayValue();if(current&&current!==String(p.updated_at))throw Error('This place was edited by another family member. Refresh and retry.')}sh.getRange(pos<0?Math.max(n+1,2):pos+2,1,1,18).setValues([row_(p)])}
-function import_(arr){if(!Array.isArray(arr)||arr.length>600)throw Error('Too many places');const sh=tab_('Places'),n=sh.getLastRow();const seen=new Set(n>1?sh.getRange(2,1,n-1,1).getValues().flat():[]);const fresh=arr.filter(p=>{if(!p||!p.id||!p.name||seen.has(p.id))return false;seen.add(p.id);return true});if(fresh.length)sh.getRange(Math.max(n+1,2),1,fresh.length,18).setValues(fresh.map(row_))}
+function import_(arr){
+ if(!Array.isArray(arr)||arr.length>600)throw Error('Too many places');
+ const sh=tab_('Places'),n=sh.getLastRow(),existing=n>1?sh.getRange(2,1,n-1,18).getValues():[];
+ const byId=new Map(existing.map((r,i)=>[String(r[0]),i]));
+ const fresh=[],updates=[],seen=new Set();
+ arr.forEach(p=>{
+  if(!p||!p.id||!p.name||seen.has(p.id))return;
+  seen.add(p.id);
+  const ix=byId.get(String(p.id));
+  if(ix===undefined){fresh.push(p);return}
+  const current=record_(existing[ix]);
+  // Recover likes and unscheduled personal plans without replacing newer shared values.
+  const merged={...current};
+  if(p.favorite===true&&!current.favorite)merged.favorite=true;
+  if(!current.day&&p.day)merged.day=p.day;
+  if((!current.notes)&&p.notes)merged.notes=p.notes;
+  if(current.status!=='visited'&&p.status==='visited')merged.status='visited';
+  if(merged.favorite!==current.favorite||merged.day!==current.day||merged.notes!==current.notes||merged.status!==current.status){
+   merged.updated_by=p.updated_by||'Family import';updates.push([ix+2,merged]);
+  }
+ });
+ updates.forEach(([row,p])=>sh.getRange(row,1,1,18).setValues([row_(p)]));
+ if(fresh.length)sh.getRange(Math.max(n+1,2),1,fresh.length,18).setValues(fresh.map(row_));
+}
 function maps_(p){const q=p.lat!=null&&p.lng!=null?p.lat+','+p.lng:p.name+' '+p.city;return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(q)}
 function view_(name,title,subtitle,headers,widths,records){
  const sh=tab_(name),n=headers.length; // Automatically generated view: edit Places instead.
