@@ -149,14 +149,44 @@ const CATEGORIES=['All','Walking','Nature','Shopping','Museums','Food','Tech'];
 const TABS=['Calendar','Explore','Food','Liked','Map','Checklist'];
 const CALI_SCRIPT_URL='https://script.google.com/macros/s/AKfycbzCYeTeURqwWzWBGFkyZ1mjEed_UTYpHqWatOtYZ1W1-KIRp3MqiDVI98QFtmiG3VDu/exec';
 const configKey='cali-todo-google-sheet';  const dataKey='cali-todo-local'; const photoCache={};
-let sheetEmpty=false; let items=[], tab='Calendar', chip='All', searchQuery='', map=null, markers=[], selectedDay='2026-11-03', sheetActive=false, sheetLink='', sheetBusy=false;
+let sheetMissingPlaces=0; let sheetEmpty=false; let items=[], tab='Calendar', chip='All', searchQuery='', map=null, markers=[], selectedDay='2026-11-03', sheetActive=false, sheetLink='', sheetBusy=false;
 const pid=t=>t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const days=()=>Array.from({length:12},(_,i)=>`2026-11-${String(i+3).padStart(2,'0')}`); const fmtDay=d=>new Date(d+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
 function makeItem(arr,i){ const [name,city,category,group,lat,lng,fallback,note='']=arr; return {id:pid(name),name,city,category,group,lat,lng,fallback,image:'',favorite:false,status:'want',day:Object.entries(START_SCHEDULE).find(([k,v])=>v.includes(name))?.[0]||'',notes:note,added_by:'Trip starter',updated_by:'Trip starter',sort:i,cuisine:group==='Food'?cuisine({name,group,fallback,notes:note}):''}; }
-function starterData(){ const merged=[...BASE_PLACES.map(makeItem),...FOOD_PLACES.map(makeItem),...SF_REVIEW_PICKS.map(makeItem)]; const seen=new Set(); return merged.filter((x,i)=>{ if(seen.has(x.id)) return false; seen.add(x.id); x.sort=i; return true; }); }
-function recoveryPlaces(){for(const key of ['cali-todo-before-sheets',dataKey]){try{const value=JSON.parse(localStorage.getItem(key)||'null');if(Array.isArray(value)&&value.length)return value;}catch(e){console.warn('Invalid local backup',e)}}return starterData();}
-function loadLocal(){items=recoveryPlaces();const grove=starterData().find(p=>p.id==='the-grove-yerba-buena');if(grove&&!items.some(p=>p.id===grove.id||p.name.toLowerCase()===grove.name.toLowerCase()))items.push(grove);saveLocal();}
+const EXTRA_RESTORED_PLACES=[
+["Sutro Baths","San Francisco","Place","Nature",37.7802,-122.5033,"coast","Lands End tarihi sahil kalıntıları"],
+["Lands End Trail","San Francisco","Place","Nature",37.781,-122.503,"coast","Sahil yürüyüş parkuru"],
+["Marina Green","San Francisco","Place","Walking",37.8075,-122.4387,"marina","Marina sahil yürüyüşü"],
+["Castro District","San Francisco","Place","Walking",37.7609,-122.435,"street","LGBTQ+ tarihi mahalle"],
+["Mission District / Valencia Street","San Francisco","Place","Walking",37.7602,-122.4216,"street","Mission ve Valencia Street"],
+["Golden Gate Bridge Welcome Center","San Francisco","Place","Walking",37.8078,-122.4749,"golden-gate","Golden Gate manzara noktası"],
+["Fort Mason Center","San Francisco","Place","Walking",37.8078,-122.4319,"marina","6 Kasım Fort Mason Night Market"],
+["USS Pampanito","San Francisco","Museum","Museums",37.8096,-122.4164,"wharf","Pier 45 denizaltı müzesi"],
+["Powell–Hyde Cable Car","San Francisco","Experience","Walking",37.8079,-122.4203,"street","Tarihi cable car tramvay yolculuğu"],
+["Gilroy Premium Outlets","Gilroy","Place","Shopping",37.0243,-121.567,"outlets","12 Kasım outlet alışverişi"],
+["Trader Joe's Berkeley","Berkeley","Place","Shopping",37.871,-122.268,"shopping","14 Kasım alışveriş"],
+["Yerba Buena Gardens","San Francisco","Place","Nature",37.7848,-122.402,"park","4 Kasım yürüyüş"],
+["Alamo Square","San Francisco","Place","Nature",37.7763,-122.4346,"victorians","Painted Ladies manzarası"],
+["Twin Peaks","San Francisco","Place","Nature",37.7544,-122.4477,"viewpoint","Şehir manzarası"],
+["Golden Gate Park Conservatory of Flowers","San Francisco","Place","Nature",37.7726,-122.4602,"garden","Golden Gate Park sera bahçesi"]
+];
+function originalNonRestaurantCatalog(){
+ const saved=[...BASE_PLACES,...SF_REVIEW_PICKS,...EXTRA_RESTORED_PLACES].filter(p=>p[3]!=='Food'&&p[2]!=='Restaurant').map(makeItem);
+ const seen=new Set();return saved.filter(p=>{if(seen.has(p.id))return false;seen.add(p.id);return true;});
+}
+function mergeRestoredPlaces(rows){
+ const restored=originalNonRestaurantCatalog();const list=Array.isArray(rows)?rows.filter(Boolean):[];
+ const ids=new Set(list.map(p=>p.id));const names=new Set(list.map(p=>pid(p.name||'')));
+ for(const p of restored){if(!ids.has(p.id)&&!names.has(pid(p.name))){list.push(p);ids.add(p.id);names.add(pid(p.name));}}
+ return list;
+}
+function missingRestoredCount(rows){
+ const names=new Set((rows||[]).map(p=>pid(p.name||'')));return originalNonRestaurantCatalog().filter(p=>!names.has(pid(p.name))).length;
+}
+function starterData(){ const merged=[...BASE_PLACES.map(makeItem),...FOOD_PLACES.map(makeItem),...SF_REVIEW_PICKS.map(makeItem),...EXTRA_RESTORED_PLACES.map(makeItem)]; const seen=new Set(); return merged.filter((x,i)=>{ if(seen.has(x.id)) return false; seen.add(x.id); x.sort=i; return true; }); }
+function recoveryPlaces(){for(const key of ['cali-todo-before-sheets',dataKey]){try{const value=JSON.parse(localStorage.getItem(key)||'null');if(Array.isArray(value)&&value.length)return mergeRestoredPlaces(value);}catch(e){console.warn('Invalid local backup',e)}}return mergeRestoredPlaces(starterData());}
+function loadLocal(){items=mergeRestoredPlaces(recoveryPlaces());const grove=starterData().find(p=>p.id==='the-grove-yerba-buena');if(grove&&!items.some(p=>p.id===grove.id||p.name.toLowerCase()===grove.name.toLowerCase()))items.push(grove);saveLocal();}
 function saveLocal(){if(Array.isArray(items)&&items.length)localStorage.setItem(dataKey,JSON.stringify(items));}
 function config(){try{return {url:CALI_SCRIPT_URL,...JSON.parse(localStorage.getItem(configKey)||'{}')}}catch(e){return {url:CALI_SCRIPT_URL}}}
 function setModePill(){document.getElementById('modePill').textContent=sheetActive?(sheetEmpty?'● Sheet boş · yedek gösteriliyor':'● Sheet bağlı'):config().code?'● Çevrimdışı':'○ Yerel kayıt';document.getElementById('connectBtn').textContent=sheetActive?'☁︎ Sheets ✓':'☁︎ Sheets';}
@@ -192,7 +222,7 @@ let photoObserver;
 function ensureVisiblePhotos(){photoObserver?.disconnect();photoObserver=new IntersectionObserver(entries=>{entries.forEach(e=>{if(!e.isIntersecting)return;const p=items.find(x=>x.id===e.target.dataset.place);if(p)fetchWikiPhoto(p);photoObserver.unobserve(e.target)})},{rootMargin:'250px'});document.querySelectorAll('img[data-place]').forEach(img=>photoObserver.observe(img));}
 function mapUrl(p){ return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${p.name} ${p.city}`)}`; }
 function matchesSearch(p){ const q=searchQuery.trim().toLowerCase(); return !q || [p.name,p.city,p.category,p.group,p.notes].join(' ').toLowerCase().includes(q); }
-function filterItems(){return items.filter(p=>matchesSearch(p)&&(tab==='Food'?p.group==='Food':tab==='Explore'?(chip==='Food'||chip==='All'?true:p.group!=='Food'):tab==='Liked'?p.favorite:true)&&(chip==='All'||p.group===chip));}
+function filterItems(){return items.filter(p=>matchesSearch(p)&&(tab==='Food'?p.group==='Food':tab==='Explore'?p.group!=='Food':tab==='Liked'?p.favorite:true)&&(chip==='All'||p.group===chip));}
 async function persistItem(item,remove=false){if(remove)return false;if(!config().code){saveLocal();return true;}if(!sheetActive){alert('Your Google Sheet is not connected. Reconnect before saving.');return false;}try{await writeSheet('upsert',{item:{...item,cuisine:item.cuisine||cuisine(item)}});return true;}catch(e){alert('Could not save to Google Sheet: '+e.message);return false;}}
 async function updateItem(id,patch){ const old=items.find(x=>x.id===id); if(!old) return; const next={...old,...patch,updated_by:localStorage.getItem('cali-person-name')||'Family'}; const ok=await persistItem(next,false); if(!ok) return; items=items.map(x=>x.id===id?next:x); if(!sheetActive) saveLocal(); render(); }
 function likeToggle(id){updateItem(id,{favorite:!items.find(x=>x.id===id).favorite})} function visitedToggle(id){updateItem(id,{status:items.find(x=>x.id===id).status==='visited'?'want':'visited'})}
@@ -238,7 +268,10 @@ return '<div class="calendarIntro"><div><div class="eyebrow">✳ THE CALIFORNIA 
 '<div class="selectedBar"><span class="eyebrow">● SELECTED DAY</span><div class="controls"><button class="secondary" id="dayRoute">↗ Günün rotası</button><button class="primary" id="scheduleNew">＋ Yer ekle</button></div></div><section class="planPane" id="dayDetails">'+dayDetails(selectedDay)+'</section>';
 }
 function renderChecklist(){ const visible=filterItems(); return `<div class="boardHeader"><div><h2>Checklist</h2><div class="muted">Want to visit, scheduled, visited.</div></div></div><div class="checkGroup">${visible.map(p=>`<label class="checkItem"><input type="checkbox" ${p.status==='visited'?'checked':''} data-action="visit" data-id="${p.id}"><img class="checkThumb" data-place="${esc(p.id)}" src="${esc(photo(p))}"><div><b>${esc(p.name)}</b><div class="muted">${esc(p.city)} · ${esc(p.group)}${p.day?` · ${fmtDay(p.day)}`:''}</div></div><a class="tinybtn" target="_blank" href="${mapUrl(p)}">Maps</a></label>`).join('')||'<div class="empty">No matching items.</div>'}</div>`; }
-function sheetEmptyNotice(){return sheetActive&&sheetEmpty?'<div class="sheetEmptyNotice"><div><strong>Google Sheet bağlı ancak Places tablosunda henüz yer yok.</strong><p>Eski yerlerin silinmedi. Yerel kayıtlar ve başlangıç listesi gösteriliyor; ortak Google Sheet’e aktarmak için butona bas.</p></div><button class="primary" id="seedSheet">Yerleri Google Sheet’e aktar</button></div>':'';}
+function sheetEmptyNotice(){
+ if(!sheetActive||sheetMissingPlaces===0)return '';
+ return '<div class="sheetEmptyNotice"><div><strong>'+sheetMissingPlaces+' eski gezi yeri geri yüklendi.</strong><p>Explore içinde tüm yerleri görebilirsin. Google Sheet de güncellensin istersen sadece eksik yerleri aktar (restoranlar aktarılmaz).</p></div><button class="primary" id="seedSheet">Eksik yerleri Sheet’e aktar</button></div>';
+}
 function render(){ if(dayMapInstance){dayMapInstance.remove();dayMapInstance=null;} groupSummary(); document.getElementById('tabs').innerHTML=tabs(); document.getElementById('chips').innerHTML=tab==='Explore'?chips():'';document.getElementById('chips').style.display=tab==='Explore'?'flex':'none'; setModePill(); const visible=filterItems(); let html=''; if(tab==='Explore') html=renderBoard(visible,'Explore California','walking, nature, shopping, museums, and tech'); if(tab==='Food') html=renderBoard(visible.filter(p=>p.group==='Food'),'Food board','restaurants, dessert, brunch, and casual spots'); if(tab==='Liked') html=renderBoard(visible.filter(p=>p.favorite),'Liked places','everything you hearted, in one board'); if(tab==='Ideas') html=renderIdeas(); if(tab==='Map') html=renderMap(); if(tab==='Calendar') html=renderCalendar(); if(tab==='Checklist') html=renderChecklist(); document.getElementById('app').innerHTML=sheetEmptyNotice()+html; bindEvents(); if(tab==='Map') drawMap(); if(tab==='Calendar') drawDayMap(); ensureVisiblePhotos(); }
 function bindEvents(){ document.getElementById('globalSearch').value=searchQuery; [...document.querySelectorAll('#tabs button')].forEach((b,i)=>b.onclick=()=>{tab=TABS[i]; chip='All'; render();}); [...document.querySelectorAll('#chips .chip')].forEach((b,i)=>b.onclick=()=>{chip=CATEGORIES[i]; render();}); document.getElementById('connectBtn').onclick=showSheetSettings;document.getElementById('seedSheet')?.addEventListener('click',importCurrentBoard); document.getElementById('addBtn').onclick=()=>showAdd(); document.getElementById('headerAdd')?.addEventListener('click',()=>showAdd()); document.getElementById('dayRoute')?.addEventListener('click',()=>window.open(dayRouteLink(DETAILED_PLAN.find(p=>p.day===selectedDay).stops),'_blank')); document.getElementById('scheduleNew')?.addEventListener('click',showDayPicker); document.querySelectorAll('[data-action="like"]').forEach(b=>b.onclick=e=>{e.preventDefault();likeToggle(b.dataset.id)}); document.querySelectorAll('[data-action="visit"]').forEach(b=>b.onchange=b.onclick=e=>{e.preventDefault();visitedToggle(b.dataset.id)}); document.querySelectorAll('[data-action="schedule"]').forEach(b=>b.onclick=()=>pickDay(b.dataset.id)); document.querySelectorAll('[data-action="edit"]').forEach(b=>b.onclick=()=>showAdd(b.dataset.id)); document.querySelectorAll('[data-action="unschedule"]').forEach(b=>b.onclick=()=>updateItem(b.dataset.id,{day:''})); document.querySelectorAll('[data-day]').forEach(d=>d.onclick=()=>{selectedDay=d.dataset.day; render();document.getElementById('dayDetails')?.scrollIntoView({behavior:'smooth',block:'start'});});document.querySelectorAll('[data-day-check]').forEach(c=>c.onchange=()=>{dayChecks[c.dataset.dayCheck]=c.checked;localStorage.setItem(dayChecksKey,JSON.stringify(dayChecks));const d=document.querySelector('[data-day="'+selectedDay+'"] .dayProgress');if(d){const p=DETAILED_PLAN.find(x=>x.day===selectedDay);d.textContent='✓ '+p.stops.filter((_,i)=>dayChecks[selectedDay+'-'+i]).length+'/'+p.stops.length+' tamamlandı';}}); document.querySelectorAll('[data-focus]').forEach(d=>d.onclick=(e)=>{if(e.target.tagName==='A'||e.target.tagName==='BUTTON')return; focusMap(d.dataset.focus);}); }
 function modal(html){ document.getElementById('modalRoot').innerHTML=`<div class="modalBack" id="modalBack"><div class="modal">${html}</div></div>`; document.getElementById('modalBack').onclick=e=>{if(e.target.id==='modalBack') closeModal();}; }
@@ -285,15 +318,16 @@ async function writeSheet(action,payload){
   catch(e){if(attempt===3)throw e}
  }
  if(!last?.ok||!confirmed(last.items||[]))throw Error('Write could not be confirmed. Check the Sheet and deployment.');
- sheetEmpty=false;items=last.items||[];sheetActive=true;sheetLink=last.url||'';saveLocal();
+ sheetEmpty=false;sheetMissingPlaces=missingRestoredCount(last.items||[]);items=mergeRestoredPlaces(last.items||[]);sheetActive=true;sheetLink=last.url||'';saveLocal();
 }
 function preserveLocalBeforeSheets(){const raw=localStorage.getItem('cali-todo-local');if(raw&&JSON.parse(raw).length)localStorage.setItem('cali-todo-before-sheets',raw);}
 async function useSheetData(data){
  sheetActive=true;sheetLink=data.url||sheetLink;
  const rows=Array.isArray(data.items)?data.items:[];
  sheetEmpty=rows.length===0;
- if(sheetEmpty){items=recoveryPlaces();}
- else{preserveLocalBeforeSheets();items=rows;saveLocal();}
+ sheetMissingPlaces=missingRestoredCount(rows);
+ if(sheetEmpty){items=mergeRestoredPlaces(recoveryPlaces());}
+ else{preserveLocalBeforeSheets();items=mergeRestoredPlaces(rows);saveLocal();}
  render();
 }
 async function connectSheet(){
@@ -309,12 +343,16 @@ async function refreshSheet(){
  finally{sheetBusy=false}
 }
 async function importCurrentBoard(){
- if(!sheetActive)return alert('Connect the sheet first.');
- const local=recoveryPlaces();
- if(!local.length)return alert('Nothing to import.');
- if(!confirm('Import '+local.length+' items into Google Sheets? Existing rows with matching IDs will stay unchanged.'))return;
- try{await writeSheet('import',{items:local.map(p=>({...p,cuisine:p.cuisine||cuisine(p)}))});closeModal();render();alert('Imported missing places. The Google Sheet now powers the website.');}
- catch(e){alert('Import failed: '+e.message)}
+ if(!sheetActive)return alert('Google Sheet bağlı değil.');
+ const catalog=originalNonRestaurantCatalog();
+ const current=await readSheet();
+ const ids=new Set((current.items||[]).map(p=>p.id));
+ const names=new Set((current.items||[]).map(p=>pid(p.name||'')));
+ const missing=catalog.filter(p=>!ids.has(p.id)&&!names.has(pid(p.name)));
+ if(!missing.length){sheetMissingPlaces=0;render();return alert('Tüm eski gezi yerleri Sheet’te mevcut.');}
+ if(!confirm(missing.length+' restoran dışı eski gezi yerini Google Sheet’e eklemek istiyor musun? Mevcut kayıtlar değişmez.'))return;
+ try{await writeSheet('import',{items:missing});sheetMissingPlaces=0;closeModal();render();alert('Eksik gezi yerleri Sheet’e eklendi.');}
+ catch(e){alert('Aktarım başarısız: '+e.message);}
 }
 function showSheetSettings(){
  const cfg=config(), synced=sheetActive;
