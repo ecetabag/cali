@@ -207,16 +207,25 @@ const ROUND_TWO_FOOD_IDS=new Set(ROUND_TWO_FOOD.map(p=>pid(p[0])));
 // Approved Round 4 survey selection.
 const ROUND_FOUR_FOOD=[["Flour + Water","San Francisco","Restaurant","Food",37.7589,-122.4121,"italian","Mission District · Handmade pasta and Italian cuisine"]];
 const ROUND_FOUR_FOOD_IDS=new Set(ROUND_FOUR_FOOD.map(p=>pid(p[0])));
+// Approved Berkeley-area selections from Food Round 5.
+const ROUND_FIVE_FOOD=[
+["Cafe Brusco","Berkeley","Restaurant","Food",null,null,"cafe","Downtown Berkeley · Bagels and cafe"],
+["Farmhouse Kitchen Thai Cuisine","Berkeley","Restaurant","Food",null,null,"thai","North Berkeley · Thai cuisine"],
+["La Note","Berkeley","Restaurant","Food",37.8678,-122.2689,"bistro","Downtown Berkeley · French brunch"],
+["La Mission","Berkeley","Restaurant","Food",null,null,"mexican","West Berkeley · Mexican"]
+];
+const ROUND_FIVE_FOOD_IDS=new Set(ROUND_FIVE_FOOD.map(p=>pid(p[0])));
+
 
 
 
 function curatedOriginalFood(){
  const all=[...FOOD_PLACES,...SF_REVIEW_PICKS].filter(p=>p[3]==='Food').map(makeItem);
  const byName=new Map(all.map(p=>[pid(p.name),p]));
- return [...APPROVED_ORIGINAL_FOOD_NAMES.map(name=>byName.get(pid(name))).filter(Boolean),...ALWAYS_ADD_FOOD.map(makeItem),...ROUND_TWO_FOOD.map(makeItem),...ROUND_FOUR_FOOD.map(makeItem)];
+ return [...APPROVED_ORIGINAL_FOOD_NAMES.map(name=>byName.get(pid(name))).filter(Boolean),...ALWAYS_ADD_FOOD.map(makeItem),...ROUND_TWO_FOOD.map(makeItem),...ROUND_FOUR_FOOD.map(makeItem),...ROUND_FIVE_FOOD.map(makeItem)];
 }
-function isApprovedFood(p){return p.group==='Food'&&(APPROVED_ORIGINAL_FOOD_IDS.has(pid(p.name||''))||ALWAYS_ADD_FOOD_IDS.has(pid(p.name||''))||ROUND_TWO_FOOD_IDS.has(pid(p.name||''))||ROUND_FOUR_FOOD_IDS.has(pid(p.name||'')));}
-function starterData(){ const merged=[...BASE_PLACES.map(makeItem),...FOOD_PLACES.map(makeItem),...SF_REVIEW_PICKS.map(makeItem),...EXTRA_RESTORED_PLACES.map(makeItem),...ALWAYS_ADD_FOOD.map(makeItem),...ROUND_TWO_FOOD.map(makeItem),...ROUND_FOUR_FOOD.map(makeItem)]; const seen=new Set(); return merged.filter((x,i)=>{ if(seen.has(x.id)) return false; seen.add(x.id); x.sort=i; return true; }); }
+function isApprovedFood(p){return p.group==='Food'&&(APPROVED_ORIGINAL_FOOD_IDS.has(pid(p.name||''))||ALWAYS_ADD_FOOD_IDS.has(pid(p.name||''))||ROUND_TWO_FOOD_IDS.has(pid(p.name||''))||ROUND_FOUR_FOOD_IDS.has(pid(p.name||''))||ROUND_FIVE_FOOD_IDS.has(pid(p.name||'')));}
+function starterData(){ const merged=[...BASE_PLACES.map(makeItem),...FOOD_PLACES.map(makeItem),...SF_REVIEW_PICKS.map(makeItem),...EXTRA_RESTORED_PLACES.map(makeItem),...ALWAYS_ADD_FOOD.map(makeItem),...ROUND_TWO_FOOD.map(makeItem),...ROUND_FOUR_FOOD.map(makeItem),...ROUND_FIVE_FOOD.map(makeItem)]; const seen=new Set(); return merged.filter((x,i)=>{ if(seen.has(x.id)) return false; seen.add(x.id); x.sort=i; return true; }); }
 function recoveryPlaces(){for(const key of ['cali-todo-before-sheets',dataKey]){try{const value=JSON.parse(localStorage.getItem(key)||'null');if(Array.isArray(value)&&value.length)return mergeRestoredPlaces(value);}catch(e){console.warn('Invalid local backup',e)}}return mergeRestoredPlaces(starterData());}
 function loadLocal(){items=mergeRestoredPlaces(recoveryPlaces());saveLocal();}
 function saveLocal(){if(Array.isArray(items)&&items.length)localStorage.setItem(dataKey,JSON.stringify(items));}
