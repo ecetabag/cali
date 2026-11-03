@@ -188,19 +188,31 @@ function missingRestoredCount(rows){
 
 // Food survey: approved restaurants from the original 53-place list.
 // Kept separate from the historical data so no user edits or Sheet rows are deleted.
-const APPROVED_ORIGINAL_FOOD_NAMES=["Cholita Linda","Little Plearn Thai Kitchen","Cancun Sabor Mexicano","Angeline's Louisiana Kitchen","Eureka!","Agrodolce Osteria","Revival Bar + Kitchen","Mezzo","Raleigh's","Great China","Jupiter"];
+const APPROVED_ORIGINAL_FOOD_NAMES=["Cholita Linda","Little Plearn Thai Kitchen","Cancun Sabor Mexicano","Angeline's Louisiana Kitchen","Eureka!","Agrodolce Osteria","Revival Bar + Kitchen","Mezzo","Raleigh's","Great China","Jupiter","Tony's Pizza Napoletana"];
 const APPROVED_ORIGINAL_FOOD_IDS=new Set(APPROVED_ORIGINAL_FOOD_NAMES.map(pid));
 // Automatically approved additional stop: Gott's Roadside at the Ferry Building.
 const ALWAYS_ADD_FOOD=[["Gott's Roadside - Ferry Building","San Francisco","Restaurant","Food",37.7955,-122.3933,"burgers","Ferry Building · Burgers, fries, shakes · great lunch before the Sausalito ferry"]];
 const ALWAYS_ADD_FOOD_IDS=new Set(ALWAYS_ADD_FOOD.map(p=>pid(p[0])));
+// Survey Round 2: manually curated venues not previously in the original dataset.
+const ROUND_TWO_FOOD=[
+["Iyasare","Berkeley","Restaurant","Food",37.8687,-122.3009,"japanese","Fourth Street · Japanese"],
+["Divan","Berkeley","Restaurant","Food",null,null,"turkish","Fourth Street · Turkish"],
+["Oceanview Diner","Berkeley","Restaurant","Food",37.8703,-122.3005,"bistro","Fourth Street · Breakfast and brunch"],
+["Original Joe's","San Francisco","Restaurant","Food",37.7997,-122.4089,"italian","North Beach · Italian-American"],
+["Il Casaro Pizzeria","San Francisco","Restaurant","Food",37.7991,-122.4086,"pizza","North Beach · Neapolitan pizza"],
+["A16","San Francisco","Restaurant","Food",37.8008,-122.4374,"italian","Marina · Italian pizza and pasta"],
+["Delarosa Marina","San Francisco","Restaurant","Food",37.8002,-122.4377,"pizza","Marina · Pizza and small plates"]
+];
+const ROUND_TWO_FOOD_IDS=new Set(ROUND_TWO_FOOD.map(p=>pid(p[0])));
+
 
 function curatedOriginalFood(){
  const all=[...FOOD_PLACES,...SF_REVIEW_PICKS].filter(p=>p[3]==='Food').map(makeItem);
  const byName=new Map(all.map(p=>[pid(p.name),p]));
- return [...APPROVED_ORIGINAL_FOOD_NAMES.map(name=>byName.get(pid(name))).filter(Boolean),...ALWAYS_ADD_FOOD.map(makeItem)];
+ return [...APPROVED_ORIGINAL_FOOD_NAMES.map(name=>byName.get(pid(name))).filter(Boolean),...ALWAYS_ADD_FOOD.map(makeItem),...ROUND_TWO_FOOD.map(makeItem)];
 }
-function isApprovedFood(p){return p.group==='Food'&&(APPROVED_ORIGINAL_FOOD_IDS.has(pid(p.name||''))||ALWAYS_ADD_FOOD_IDS.has(pid(p.name||'')));}
-function starterData(){ const merged=[...BASE_PLACES.map(makeItem),...FOOD_PLACES.map(makeItem),...SF_REVIEW_PICKS.map(makeItem),...EXTRA_RESTORED_PLACES.map(makeItem),...ALWAYS_ADD_FOOD.map(makeItem)]; const seen=new Set(); return merged.filter((x,i)=>{ if(seen.has(x.id)) return false; seen.add(x.id); x.sort=i; return true; }); }
+function isApprovedFood(p){return p.group==='Food'&&(APPROVED_ORIGINAL_FOOD_IDS.has(pid(p.name||''))||ALWAYS_ADD_FOOD_IDS.has(pid(p.name||''))||ROUND_TWO_FOOD_IDS.has(pid(p.name||'')));}
+function starterData(){ const merged=[...BASE_PLACES.map(makeItem),...FOOD_PLACES.map(makeItem),...SF_REVIEW_PICKS.map(makeItem),...EXTRA_RESTORED_PLACES.map(makeItem),...ALWAYS_ADD_FOOD.map(makeItem),...ROUND_TWO_FOOD.map(makeItem)]; const seen=new Set(); return merged.filter((x,i)=>{ if(seen.has(x.id)) return false; seen.add(x.id); x.sort=i; return true; }); }
 function recoveryPlaces(){for(const key of ['cali-todo-before-sheets',dataKey]){try{const value=JSON.parse(localStorage.getItem(key)||'null');if(Array.isArray(value)&&value.length)return mergeRestoredPlaces(value);}catch(e){console.warn('Invalid local backup',e)}}return mergeRestoredPlaces(starterData());}
 function loadLocal(){items=mergeRestoredPlaces(recoveryPlaces());saveLocal();}
 function saveLocal(){if(Array.isArray(items)&&items.length)localStorage.setItem(dataKey,JSON.stringify(items));}
